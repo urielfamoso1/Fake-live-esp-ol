@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fake Live</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    overflow: hidden;
+  }
+
+  .phone-frame {
+    width: 375px;
+    height: 812px;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+    border-radius: 40px;
+    border: 2px solid #333;
+    box-shadow: 0 0 60px rgba(0,0,0,0.8);
+  }
+
+  /* Camera feed */
+  #camera-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+
+  .no-camera {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: #666;
+    font-size: 14px;
+  }
+
+  .no-camera svg { opacity: 0.4; }
+
+  /* Overlay gradient */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 25%),
+      linear-gradient(0deg, rgba(0,0,0,0.75) 0%, transparent 40%);
+    pointer-events: none;
+  }
+
+  /* TOP BAR */
+  .top-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 16px 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 10;
+  }
+
+  .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+    padding: 2px;
+    flex-shrink: 0;
+  }
+
+  .avatar-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: #222;
+    border: 2px solid #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .user-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .username {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .verified {
+    width: 14px;
+    height: 14px;
+    background: #0095f6;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .live-badge-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .live-badge {
+    background: #ff0040;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .view-count {
+    color: rgba(255,255,255,0.85);
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .view-count::before {
+    content: '👁';
+    font-size: 10px;
+  }
+
+  .top-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .btn-close {
+    width: 28px;
+    height: 28px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 50%;
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+
+  /* COMMENTS AREA */
+  .comments-area {
+    position: absolute;
+    bottom: 120px;
+    left: 0; right: 60px;
+    padding: 0 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 10;
+    overflow: hidden;
+    max-height: 280px;
+  }
+
+  .comment {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    animation: slideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    opacity: 0;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .comment.fade-out {
+    animation: fadeOut 0.5s ease forwards;
+  }
+
+  @keyframes fadeOut {
+    to { opacity: 0; transform: translateY(-8px); }
+  }
+
+  .comment-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .comment-bubble {
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(6px);
+    border-radius: 14px;
+    padding: 5px 10px;
+    max-width: 260px;
+  }
+
+  .comment-user {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    margin-right: 4px;
+  }
+
+  .comment-text {
+    font-size: 12px;
+    color: rgba(255,255,255,0.9);
+    line-height: 1.4;
+  }
+
+  /* DONATIONS */
+  .donation-banner {
+    position: absolute;
+    left: 12px; right: 12px;
+    bottom: 115px;
+    z-index: 20;
+    animation: donationPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    display: none;
+  }
+
+  .donation-banner.show {
+    display: block;
+  }
+
+  @keyframes donationPop {
+    from { opacity: 0; transform: scale(0.85) translateY(10px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .donation-inner {
+    background: linear-gradient(135deg, #ffd700, #ff8c00);
+    border-radius: 14px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 20px rgba(255,165,0,0.4);
+  }
+
+  .donation-coin {
+    font-size: 22px;
+    animation: spin 0.6s ease;
+  }
+
+  @keyframes spin {
+    from { transform: rotateY(0deg); }
+    to   { transform: rotateY(360deg); }
+  }
+
+  .donation-text { flex: 1; }
+  .donation-from { font-size: 11px; font-weight: 700; color: rgba(0,0,0,0.7); }
+  .donation-amount { font-size: 18px; font-weight: 900; color: #000; line-height: 1; }
+  .donation-msg { font-size: 11px; color: rgba(0,0,0,0.75); margin-top: 1px; }
+
+  /* BOTTOM BAR */
+  .bottom-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 12px 16px 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 10;
+  }
+
+  .comment-input-fake {
+    flex: 1;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 22px;
+    padding: 8px 16px;
+    color: rgba(255,255,255,0.5);
+    font-size: 13px;
+    backdrop-filter: blur(4px);
+  }
+
+  .right-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .action-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(4px);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 20px;
+    transition: transform 0.15s;
+    color: white;
+  }
+
+  .action-btn:active { transform: scale(0.9); }
+
+  /* HEARTS floating */
+  .hearts-container {
+    position: absolute;
+    bottom: 80px;
+    right: 20px;
+    width: 40px;
+    height: 200px;
+    z-index: 15;
+    pointer-events: none;
+  }
+
+  .heart {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    font-size: 22px;
+    animation: floatHeart 2.5s ease-out forwards;
+    opacity: 0;
+  }
+
+  @keyframes floatHeart {
+    0%   { opacity: 1; transform: translateY(0) scale(0.8) rotate(-15deg); }
+    30%  { opacity: 1; transform: translateY(-40px) scale(1.1) rotate(8deg); }
+    70%  { opacity: 0.7; transform: translateY(-100px) scale(0.9) rotate(-5deg); }
+    100% { opacity: 0; transform: translateY(-180px) scale(0.6) rotate(12deg); }
+  }
+
+  /* LIVE PULSE dot */
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    background: #ff0040;
+    border-radius: 50%;
+    animation: pulse 1.2s ease infinite;
+    display: inline-block;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.6); }
+  }
+
+  /* START SCREEN */
+  .start-screen {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    z-index: 30;
+    border-radius: 40px;
+    backdrop-filter: blur(8px);
+  }
+
+  .start-title {
+    color: #fff;
+    font-size: 22px;
+    font-weight: 800;
+    text-align: center;
+  }
+
+  .start-sub {
+    color: rgba(255,255,255,0.55);
+    font-size: 13px;
+    text-align: center;
+    max-width: 240px;
+    line-height: 1.5;
+  }
+
+  .btn-start {
+    background: linear-gradient(135deg, #f09433, #dc2743, #bc1888);
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    padding: 14px 40px;
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+    margin-top: 8px;
+    box-shadow: 0 4px 24px rgba(220,39,67,0.4);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+
+  .btn-start:hover {
+    transform: scale(1.04);
+    box-shadow: 0 6px 30px rgba(220,39,67,0.55);
+  }
+
+  .camera-icon { font-size: 48px; }
+
+  /* Scrollbar para comments */
+  .comments-area::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+
+<div class="phone-frame" id="frame">
+
+  <!-- START SCREEN -->
+  <div class="start-screen" id="startScreen">
+    <div class="camera-icon">📸</div>
+    <div class="start-title">Fake Live Studio</div>
+    <div class="start-sub">Necesitás permitir la cámara para simular el directo de Instagram</div>
+    <button class="btn-start" onclick="startLive()">🎥 Iniciar directo</button>
+  </div>
+
+  <!-- CAMERA -->
+  <div class="no-camera" id="noCam">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5">
+      <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+    </svg>
+    <span>Sin cámara</span>
+  </div>
+  <video id="camera-video" autoplay muted playsinline style="display:none"></video>
+
+  <!-- OVERLAY -->
+  <div class="overlay"></div>
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="avatar">
+      <div class="avatar-inner">M</div>
+    </div>
+    <div class="user-info">
+      <div class="username">
+        marcosuriel
+        <span class="verified">✓</span>
+      </div>
+      <div class="live-badge-row">
+        <span class="live-badge"><span class="live-dot"></span> &nbsp;EN VIVO</span>
+        <span class="view-count" id="viewCount">2.847</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="btn-close">✕</button>
+    </div>
+  </div>
+
+  <!-- HEARTS CONTAINER -->
+  <div class="hearts-container" id="heartsContainer"></div>
+
+  <!-- DONATION BANNER -->
+  <div class="donation-banner" id="donationBanner">
+    <div class="donation-inner">
+      <div class="donation-coin">🪙</div>
+      <div class="donation-text">
+        <div class="donation-from" id="donationFrom">usuario</div>
+        <div class="donation-amount" id="donationAmount">$5.000</div>
+        <div class="donation-msg" id="donationMsg">¡Kekazo!</div>
+      </div>
+      <div style="font-size:22px">🎉</div>
+    </div>
+  </div>
+
+  <!-- COMMENTS AREA -->
+  <div class="comments-area" id="commentsArea"></div>
+
+  <!-- BOTTOM BAR -->
+  <div class="bottom-bar">
+    <div class="comment-input-fake">Comentar...</div>
+    <div class="right-actions">
+      <button class="action-btn" onclick="addHeart()">❤️</button>
+      <button class="action-btn">📤</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ============ DATA ============
+  const COMMENTS = [
+    { user: "sofi.mv",       color: "#e91e8c", text: "URIIII JAJAJA qué estás haciendo 😭💀" },
+    { user: "tomi_baires",   color: "#00b4d8", text: "esto es el mejor contenido que vi en mi vida" },
+    { user: "caro.gg",       color: "#ff6b35", text: "alguien me puede explicar qué pasó 😂😂" },
+    { user: "nacho_real",    color: "#7b2d8b", text: "los que llegamos temprano somos los mejores" },
+    { user: "juli.estudio",  color: "#2dc653", text: "Uri te amo pero sos un enfermo jajaj ❤️" },
+    { user: "fede.r",        color: "#f72585", text: "EL CRACK HACIENDO SU COSA" },
+    { user: "vale_ok",       color: "#ff9f1c", text: "alguien le avise a su mamá que está en vivo" },
+    { user: "martu_g",       color: "#4361ee", text: "esto no puede ser real 💀💀💀" },
+    { user: "pablitorc",     color: "#ef233c", text: "EL HOMBRE, EL MITO, LA LEYENDA" },
+    { user: "lauti.bsas",    color: "#06d6a0", text: "te re banco uri sos un capo" },
+    { user: "magu_dv",       color: "#9b5de5", text: "me pasó el link mi prima y ya me murí de risa" },
+    { user: "nico_arq",      color: "#f15bb5", text: "arquitecto de día, streamer de noche 😎" },
+    { user: "lore.flores",   color: "#fee440", text: "URIIIIII ajjajaja no puedo creerlo" },
+    { user: "rodrigo.vp",    color: "#00bbf9", text: "esto merece un premio Emmy igual" },
+    { user: "anita.c",       color: "#fb5607", text: "😂😂😂 me voy a morir te juro" },
+    { user: "bautista_ok",   color: "#8338ec", text: "posta uno de los mejores lives que vi" },
+    { user: "xime.ms",       color: "#ff006e", text: "uri contanos los planes de vida" },
+    { user: "guada.arce",    color: "#3a86ff", text: "LA CÁMARA LA ILUMINACIÓN TODO IMPECABLE" },
+    { user: "santi.pv",      color: "#06d6a0", text: "ya te anoté en mi lista de personas a ver siempre" },
+    { user: "romi_ok",       color: "#ffbe0b", text: "esto lo voy a guardar para cuando sea famoso" },
+    { user: "pablo_gm",      color: "#ff4d6d", text: "llegué tarde, alguien me cuenta de qué va todo?" },
+    { user: "clari.v",       color: "#4cc9f0", text: "sos UN CRACK uri de verdad" },
+    { user: "maxi.baires",   color: "#7209b7", text: "los 3000 viendo esto somos todos iguales de locos" },
+    { user: "juli.rom",      color: "#f72585", text: "te mandé esto a mi mejor amigo y se fue a dormir de la risa" },
+    { user: "emi_cc",        color: "#4361ee", text: "no lo puedo creer sigo viendo" },
+  ];
+
+  const DONATIONS = [
+    { from: "sofi.mv",      amount: "$2.000",  msg: "Sos un capooo 😂🔥" },
+    { from: "tomi_baires",  amount: "$5.000",  msg: "El mejor live del año" },
+    { from: "nacho_real",   amount: "$1.500",  msg: "Jajaja no puedo creerlo" },
+    { from: "magu_dv",      amount: "$10.000", msg: "🏆 Leyenda absoluta" },
+    { from: "fede.r",       amount: "$500",    msg: "Por los próximos 3000 vistas 🎉" },
+    { from: "bautista_ok",  amount: "$3.000",  msg: "Crack total esto" },
+  ];
+
+  const HEART_EMOJIS = ["❤️","🧡","💛","💚","💙","💜","🩷","🔥","✨"];
+
+  // ============ STATE ============
+  let views = 2847;
+  let commentIndex = 0;
+  let isRunning = false;
+
+  // ============ START ============
+  async function startLive() {
+    document.getElementById('startScreen').style.display = 'none';
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      const video = document.getElementById('camera-video');
+      video.srcObject = stream;
+      video.style.display = 'block';
+      document.getElementById('noCam').style.display = 'none';
+    } catch (e) {
+      console.log('Cámara no disponible:', e);
+    }
+    isRunning = true;
+    startCounters();
+    scheduleComments();
+    scheduleDonations();
+    scheduleHearts();
+  }
+
+  // ============ VIEW COUNTER ============
+  function startCounters() {
+    setInterval(() => {
+      // Random drift: mostly up, occasionally down
+      const delta = Math.random() < 0.7
+        ? Math.floor(Math.random() * 15) + 1
+        : -(Math.floor(Math.random() * 5) + 1);
+      views = Math.max(2800, views + delta);
+      document.getElementById('viewCount').textContent = views.toLocaleString('es-AR');
+    }, 2200);
+  }
+
+  // ============ COMMENTS ============
+  function scheduleComments() {
+    const delay = 900 + Math.random() * 1800;
+    setTimeout(() => {
+      if (!isRunning) return;
+      addComment();
+      scheduleComments();
+    }, delay);
+  }
+
+  function addComment() {
+    const c = COMMENTS[commentIndex % COMMENTS.length];
+    commentIndex++;
+
+    const area = document.getElementById('commentsArea');
+
+    const el = document.createElement('div');
+    el.className = 'comment';
+    el.innerHTML = `
+      <div class="comment-avatar" style="background:${c.color}">${c.user[0].toUpperCase()}</div>
+      <div class="comment-bubble">
+        <span class="comment-user">${c.user}</span>
+        <span class="comment-text">${c.text}</span>
+      </div>
+    `;
+    area.appendChild(el);
+
+    // Keep max 6 comments, fade old ones
+    const all = area.querySelectorAll('.comment');
+    if (all.length > 6) {
+      const oldest = all[0];
+      oldest.classList.add('fade-out');
+      setTimeout(() => oldest.remove(), 500);
+    }
+  }
+
+  // ============ DONATIONS ============
+  function scheduleDonations() {
+    const delay = 12000 + Math.random() * 20000;
+    setTimeout(() => {
+      if (!isRunning) return;
+      showDonation();
+      scheduleDonations();
+    }, delay);
+  }
+
+  function showDonation() {
+    const d = DONATIONS[Math.floor(Math.random() * DONATIONS.length)];
+    const banner = document.getElementById('donationBanner');
+    document.getElementById('donationFrom').textContent = d.from;
+    document.getElementById('donationAmount').textContent = d.amount;
+    document.getElementById('donationMsg').textContent = d.msg;
+
+    banner.classList.add('show');
+    banner.style.animation = 'none';
+    banner.offsetHeight; // reflow
+    banner.style.animation = '';
+
+    setTimeout(() => banner.classList.remove('show'), 5000);
+
+    // Burst of hearts on donation
+    for (let i = 0; i < 6; i++) {
+      setTimeout(() => addHeart(), i * 150);
+    }
+  }
+
+  // ============ FLOATING HEARTS ============
+  function scheduleHearts() {
+    const delay = 2500 + Math.random() * 4000;
+    setTimeout(() => {
+      if (!isRunning) return;
+      const count = Math.floor(Math.random() * 3) + 1;
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => addHeart(), i * 200);
+      }
+      scheduleHearts();
+    }, delay);
+  }
+
+  function addHeart() {
+    const container = document.getElementById('heartsContainer');
+    const el = document.createElement('div');
+    el.className = 'heart';
+    el.textContent = HEART_EMOJIS[Math.floor(Math.random() * HEART_EMOJIS.length)];
+    el.style.right = (Math.random() * 30) + 'px';
+    el.style.fontSize = (18 + Math.random() * 10) + 'px';
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 2600);
+  }
+
+  // ============ KEYBOARD shortcut: D for donation ============
+  document.addEventListener('keydown', e => {
+    if (e.key === 'd' || e.key === 'D') showDonation();
+    if (e.key === 'h' || e.key === 'H') { for(let i=0;i<5;i++) setTimeout(()=>addHeart(), i*100); }
+  });
+</script>
+
+</body>
+</html>
